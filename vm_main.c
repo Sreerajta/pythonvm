@@ -1,0 +1,170 @@
+#include<stdio.h>
+#include<stdlib.h>
+#include<string.h>
+#include<math.h>
+#include<time.h>
+
+
+typedef struct dataobj dataobj;
+typedef struct codeobj codeobj;
+
+dataobj *getconsts(FILE *ptr,int size);
+
+
+struct dataobj {
+    enum { is_int, is_code, is_string,is_null,is_none } type;
+    union {
+        int ival;
+        codeobj *codedat;
+        char *cval;
+    } val;
+};
+
+
+struct codeobj{
+    
+    int *code;
+    int code_size;
+    dataobj *consts;
+    int nconst;
+    char *names;
+    int ncount;
+    char *varnames;
+    int varcount;
+    char *fnname;
+    
+    
+};
+
+
+
+
+codeobj *getcode(FILE *ptr)
+{
+ //dev reminder: called after getting a 63, so no skip
+  
+  int temp=0;
+  codeobj *tempobj;
+  tempobj = (codeobj *) malloc(sizeof(codeobj));
+  fseek ( ptr , 16 , SEEK_CUR );
+ int n= fgetc(ptr);//skip 73
+ temp+= fgetc(ptr) | (fgetc(ptr) << 8) | (fgetc(ptr) << 16) | (fgetc(ptr) << 24);
+  tempobj->code_size=temp;
+  printf("code size:%d\n",tempobj->code_size);
+  tempobj->code=(int*)malloc(tempobj->code_size*sizeof(int));
+  for(int i=0;i<tempobj->code_size;i++)
+  {   tempobj->code[i]=fgetc(ptr);
+      printf("%x ", tempobj->code[i]);
+  }
+  
+  //getting consts;
+  int x=fgetc(ptr); //skip 28
+  int ntemp=0;
+  ntemp+= fgetc(ptr) | (fgetc(ptr) << 8) | (fgetc(ptr) << 16) | (fgetc(ptr) << 24);
+  tempobj->nconst=ntemp;
+  tempobj->consts=getconsts(ptr,ntemp);
+  printf("%d",tempobj->consts[0].val.ival);
+  return tempobj;
+    
+    
+}
+
+
+dataobj *getconsts(FILE *ptr,int size){
+
+  dataobj *retobj=(dataobj*) malloc(size*sizeof(dataobj));
+  for(int j=0;j<size;j++)
+  {    
+   int check=fgetc(ptr);
+    switch(check)
+    {
+        case 0x4e:
+            retobj[j].type=is_null;
+            break;
+        case 0x30:
+            retobj[j].type=is_none;
+            break;
+        case 0x69:
+            retobj[j].type=is_int;
+            int tempint=0;
+            tempint= fgetc(ptr) | (fgetc(ptr) << 8) | (fgetc(ptr) << 16) | (fgetc(ptr) << 24);
+            retobj[j].val.ival = tempint;
+            break;
+        default:
+            break;
+        
+    } 
+        
+    
+      
+}
+    return retobj;
+  }  
+
+
+
+  void execute(int *instruction, dataobj *consts, int code_size)
+    {
+        
+      int counter=0;  
+      for(int i=0;i<code_size;i++)
+      {
+        switch(instruction[counter])
+        {
+            case 0x64:
+                printf("\nload constant");
+                break;
+            case 0x17:
+                printf("\nbinary add");
+                break;
+            case 0x47:
+                printf("\nprint instr");
+                break;
+            case 0x72:
+                printf("\nprint newline");
+            case 0x53:
+                printf("\nreturn value");
+                break;
+            
+        }
+          if(instruction[counter]>90)
+              counter+=3;
+          else
+              counter+=1;
+          
+    }
+        
+        
+        
+        
+    }
+  
+  
+  
+  
+  
+  
+  
+  
+  
+  
+  
+  
+  int main()
+{   FILE *ptr;
+    ptr=fopen("test1.pyc","rb");
+    codeobj *obj=(codeobj *) malloc(sizeof(codeobj));
+     fseek ( ptr , 8 , SEEK_CUR );//skip magic num and timestamp
+    int n=fgetc(ptr);// skip 63
+   
+    obj=getcode(ptr);
+    printf("\nmain function:\n");
+    for(int i=0;i<obj->code_size;i++)
+  {   
+      printf("%02x ", obj->code[i]);
+  }
+    
+    execute(obj->code,obj->consts,obj->code_size);
+    return 0;
+}
+
