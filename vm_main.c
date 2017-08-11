@@ -18,6 +18,7 @@ struct dataobj {
         codeobj *codedat;
         char *cval;
     } val;
+    int size;
 };
 
 
@@ -27,9 +28,9 @@ struct codeobj{
     int code_size;
     dataobj *consts;
     int nconst;
-    char *names;
+    dataobj *names;
     int ncount;
-    char *varnames;
+    dataobj *varnames;
     int varcount;
     char *fnname;
     
@@ -64,6 +65,18 @@ codeobj *getcode(FILE *ptr)
   tempobj->nconst=ntemp;
   tempobj->consts=getconsts(ptr,ntemp);
   printf("%d",tempobj->consts[0].val.ival);
+  
+  //geting names:
+  x=fgetc(ptr);//skip 28
+  int nametmp=0;
+  nametmp+= fgetc(ptr) | (fgetc(ptr) << 8) | (fgetc(ptr) << 16) | (fgetc(ptr) << 24);
+  tempobj->ncount=nametmp;
+  tempobj->names=getconsts(ptr,nametmp);
+  
+  
+  
+  
+  
   return tempobj;
     
     
@@ -89,6 +102,21 @@ dataobj *getconsts(FILE *ptr,int size){
             int tempint=0;
             tempint= fgetc(ptr) | (fgetc(ptr) << 8) | (fgetc(ptr) << 16) | (fgetc(ptr) << 24);
             retobj[j].val.ival = tempint;
+            break;
+        case 0x73:
+        case 0x74:
+            printf("\nstring in get const\n");
+            retobj[j].type=is_string;
+            int tempsize=0;
+            tempsize= fgetc(ptr) | (fgetc(ptr) << 8) | (fgetc(ptr) << 16) | (fgetc(ptr) << 24);
+            retobj[j].size=tempsize;
+            printf("\nsize:%d\n",tempsize);
+            char tempstr[100];
+            fread(tempstr, tempsize, 1, ptr);
+            tempstr[tempsize]='\0';
+            retobj[j].val.cval=tempstr;
+            puts(tempstr);
+            puts(retobj[j].val.cval);
             break;
         default:
             break;
@@ -120,7 +148,7 @@ dataobj *getconsts(FILE *ptr,int size){
             case 0x47:
                 printf("\nprint instr");
                 break;
-            case 0x72:
+            case 0x48:
                 printf("\nprint newline");
             case 0x53:
                 printf("\nreturn value");
@@ -152,7 +180,7 @@ dataobj *getconsts(FILE *ptr,int size){
   
   int main()
 {   FILE *ptr;
-    ptr=fopen("test1.pyc","rb");
+    ptr=fopen("test3.pyc","rb");
     codeobj *obj=(codeobj *) malloc(sizeof(codeobj));
      fseek ( ptr , 8 , SEEK_CUR );//skip magic num and timestamp
     int n=fgetc(ptr);// skip 63
