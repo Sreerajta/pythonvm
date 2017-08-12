@@ -7,6 +7,8 @@
 
 typedef struct dataobj dataobj;
 typedef struct codeobj codeobj;
+char *strref[100]; // to store interned strings
+int strref_count=0;
 
 dataobj *getconsts(FILE *ptr,int size);
 
@@ -51,11 +53,11 @@ codeobj *getcode(FILE *ptr)
  int n= fgetc(ptr);//skip 73
  temp+= fgetc(ptr) | (fgetc(ptr) << 8) | (fgetc(ptr) << 16) | (fgetc(ptr) << 24);
   tempobj->code_size=temp;
-  printf("code size:%d\n",tempobj->code_size);
+  //printf("code size:%d\n",tempobj->code_size);//test
   tempobj->code=(int*)malloc(tempobj->code_size*sizeof(int));
   for(int i=0;i<tempobj->code_size;i++)
   {   tempobj->code[i]=fgetc(ptr);
-      printf("%x ", tempobj->code[i]);
+      //printf("%x ", tempobj->code[i]);//test
   }
   
   //getting consts;
@@ -64,7 +66,7 @@ codeobj *getcode(FILE *ptr)
   ntemp+= fgetc(ptr) | (fgetc(ptr) << 8) | (fgetc(ptr) << 16) | (fgetc(ptr) << 24);
   tempobj->nconst=ntemp;
   tempobj->consts=getconsts(ptr,ntemp);
-  printf("%d",tempobj->consts[0].val.ival);
+  //printf("%d",tempobj->consts[0].val.ival); //test
   
   //geting names:
   x=fgetc(ptr);//skip 28
@@ -105,19 +107,38 @@ dataobj *getconsts(FILE *ptr,int size){
             break;
         case 0x73:
         case 0x74:
-            printf("\nstring in get const\n");
+           // printf("\nstring in get const\n"); //test
             retobj[j].type=is_string;
             int tempsize=0;
-            tempsize= fgetc(ptr) | (fgetc(ptr) << 8) | (fgetc(ptr) << 16) | (fgetc(ptr) << 24);
+            tempsize+= fgetc(ptr) | (fgetc(ptr) << 8) | (fgetc(ptr) << 16) | (fgetc(ptr) << 24);
             retobj[j].size=tempsize;
-            printf("\nsize:%d\n",tempsize);
+            //printf("\nsize:%d\n",tempsize); //test
             char tempstr[100];
             fread(tempstr, tempsize, 1, ptr);
             tempstr[tempsize]='\0';
             retobj[j].val.cval=tempstr;
-            puts(tempstr);
-            puts(retobj[j].val.cval);
+          //  puts(retobj[j].val.cval); //test
+            if(check==0x74){
+                strref[strref_count]=tempstr;
+                printf("%s\n",strref[strref_count]);
+                strref_count+=1;
+                
+                //printf("\nstored ref at%d",strref_count-1);
+            
+            }
+           //printf("\ninterned string: %s",strref[strref_count]); //test
             break;
+        case 0x52:  
+            printf("\nencountered string ref\n");//test
+            retobj[j].type=is_string;
+            int loc=0;
+            loc+= fgetc(ptr) | (fgetc(ptr) << 8) | (fgetc(ptr) << 16) | (fgetc(ptr) << 24);
+            printf("%d",loc);
+            printf("%s",strref[loc]);
+            retobj[j].val.cval=strref[loc];
+         break;
+        case 0x63:
+            printf("\ncode obj encountered\n");
         default:
             break;
         
