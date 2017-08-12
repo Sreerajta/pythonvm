@@ -35,9 +35,45 @@ struct codeobj{
     dataobj *varnames;
     int varcount;
     char *fnname;
+    char *filename;
+    dataobj *skipobj;
+    
     
     
 };
+
+//defining the stack:
+dataobj *stack[100]; // stack has to store multiple type of dataobj
+int sp=0;
+
+void push(dataobj *obj){
+    if(sp<100)
+    { stack[sp]=obj;
+        sp+=1;
+    }
+    else{
+        printf("stack full");
+    }
+    
+}
+
+
+dataobj *pop(){
+    if(sp>0){
+        return stack[sp];
+        sp-=1;
+    }
+    else{
+        printf("stack empty");
+    }
+}
+
+//--------------------------------------------------------------------------
+
+
+
+    
+
 
 
 
@@ -75,10 +111,67 @@ codeobj *getcode(FILE *ptr)
   tempobj->ncount=nametmp;
   tempobj->names=getconsts(ptr,nametmp);
   
+  //geting varnames:
+  x=fgetc(ptr);//skip 28
+  //printf("%x:xval",x);
+  int vartmp=0;
+  vartmp+= fgetc(ptr) | (fgetc(ptr) << 8) | (fgetc(ptr) << 16) | (fgetc(ptr) << 24);
+  tempobj->varcount=vartmp;
+  //printf("%ddoo",vartmp);
+  tempobj->varnames=getconsts(ptr,vartmp);
   
   
+  //getting freevars skip
+   x=fgetc(ptr);//skip 28
+  int tmp=0;
+   tmp+= fgetc(ptr) | (fgetc(ptr) << 8) | (fgetc(ptr) << 16) | (fgetc(ptr) << 24);
+   tempobj->skipobj=getconsts(ptr,tmp);
   
+  //getting cellvars skip
+    x=fgetc(ptr);//skip 28
+    tmp=0;
+    tmp+= fgetc(ptr) | (fgetc(ptr) << 8) | (fgetc(ptr) << 16) | (fgetc(ptr) << 24);
+    tempobj->skipobj=getconsts(ptr,tmp);
   
+  //getting file name
+    fgetc(ptr);
+    //printf("\nfx is:%x",fx);//test
+    int flen=0;
+    flen+= fgetc(ptr) | (fgetc(ptr) << 8) | (fgetc(ptr) << 16) | (fgetc(ptr) << 24);
+    char *buffer=(char*) malloc(flen*sizeof(char));
+    fread(buffer,flen,1,ptr);
+    tempobj->filename=buffer;
+   // puts(tempobj->filename); // test
+    
+  //geting fn name
+    fgetc(ptr);
+    //printf("\nfx is:%x",fx);//test
+    int fnlen=0;
+    fnlen+= fgetc(ptr) | (fgetc(ptr) << 8) | (fgetc(ptr) << 16) | (fgetc(ptr) << 24);
+    char *bufferf=(char*) malloc(fnlen*sizeof(char));
+    fread(bufferf,fnlen,1,ptr);
+    tempobj->fnname=bufferf;
+    puts(tempobj->fnname);
+    
+  //skip first l no:
+    fgetc(ptr);
+    
+     fgetc(ptr);
+      
+     fgetc(ptr);
+     fgetc(ptr);
+     
+  //skip lnotab
+     fgetc(ptr);
+    //printf("\nfx is:%x",fx);//test
+    int skiptemp=0;
+    skiptemp+= fgetc(ptr) | (fgetc(ptr) << 8) | (fgetc(ptr) << 16) | (fgetc(ptr) << 24);
+    char *bufferl=(char*) malloc(skiptemp*sizeof(char));
+    fread(buffer,skiptemp,1,ptr);
+     
+     
+     
+     
   return tempobj;
     
     
@@ -139,6 +232,13 @@ dataobj *getconsts(FILE *ptr,int size){
          break;
         case 0x63:
             printf("\ncode obj encountered\n");
+            retobj[j].type=is_code;
+            retobj[j].val.codedat=getcode(ptr);
+            //printf("\nfunctincode:%x\n",retobj[j].val.codedat->code[6]);//test
+            break;
+        case 0x28:
+            printf("it hpns");
+            break;
         default:
             break;
         
@@ -156,27 +256,59 @@ dataobj *getconsts(FILE *ptr,int size){
     {
         
       int counter=0;  
-      for(int i=0;i<code_size;i++)
+      while(counter<code_size)
       {
         switch(instruction[counter])
         {
             case 0x64:
-                printf("\nload constant");
+                printf("\nload constant%x",instruction[counter]);
                 break;
             case 0x17:
-                printf("\nbinary add");
+                printf("\nbinary add%x",instruction[counter]);
                 break;
             case 0x47:
-                printf("\nprint instr");
+                printf("\nprint instr%x",instruction[counter]);
                 break;
             case 0x48:
-                printf("\nprint newline");
-            case 0x53:
-                printf("\nreturn value");
+                printf("\nprint newline%x",instruction[counter]);
                 break;
-            
+            case 0x53:
+                printf("\nreturn value%x",instruction[counter]);
+                break;
+            case 0x7c:
+                printf("\nloadfast%x",instruction[counter]);
+                break;
+            case 0x83:
+                printf("\ncall function%x",instruction[counter]);
+                break;
+            case 0x84:
+                printf("\nmake function%x",instruction[counter]);
+                break;
+            case 0x7d:
+                printf("\nstore fast%x",instruction[counter]);
+                break;
+            case 0x72:
+                printf("\npop jump if false%x",instruction[counter]);
+                break;
+            case 0x1:
+                printf("\npop top%x",instruction[counter]);
+                break;
+            case 0x6e:
+                printf("\njump forward%x",instruction[counter]);
+                break;
+            case 0x6b:
+                printf("\ncompare op%x",instruction[counter]);
+                break;
+            case 0x5a:
+                printf("\nstore name%x",instruction[counter]);
+                break;
+            case 0x65:
+                printf("\nload name%x",instruction[counter]);
+                break;
+            default:
+                break;
         }
-          if(instruction[counter]>90)
+          if(instruction[counter]>=90)
               counter+=3;
           else
               counter+=1;
