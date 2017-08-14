@@ -11,6 +11,7 @@ char *strref[100]; // to store interned strings
 int strref_count=0;
 
 dataobj *getconsts(FILE *ptr,int size);
+dataobj *retobj;
 
 
 struct dataobj {
@@ -48,20 +49,22 @@ int sp=0;
 
 void push(dataobj *obj){
     if(sp<100)
-    { stack[sp]=obj;
-        sp+=1;
+    {    
+        stack[sp++]=obj;
+        
     }
     else{
         printf("stack full");
     }
     
+    
 }
 
 
 dataobj *pop(){
+    
     if(sp>0){
-        return stack[sp];
-        sp-=1;
+        return stack[--sp];
     }
     else{
         printf("stack empty");
@@ -86,8 +89,8 @@ codeobj *getcode(FILE *ptr)
   codeobj *tempobj;
   tempobj = (codeobj *) malloc(sizeof(codeobj));
   fseek ( ptr , 16 , SEEK_CUR );
- int n= fgetc(ptr);//skip 73
- temp+= fgetc(ptr) | (fgetc(ptr) << 8) | (fgetc(ptr) << 16) | (fgetc(ptr) << 24);
+  int n= fgetc(ptr);//skip 73
+  temp+= fgetc(ptr) | (fgetc(ptr) << 8) | (fgetc(ptr) << 16) | (fgetc(ptr) << 24);
   tempobj->code_size=temp;
   //printf("code size:%d\n",tempobj->code_size);//test
   tempobj->code=(int*)malloc(tempobj->code_size*sizeof(int));
@@ -97,22 +100,41 @@ codeobj *getcode(FILE *ptr)
   }
   
   //getting consts;
-  int x=fgetc(ptr); //skip 28
+  printf("\ngetting consts\n"); //test
+  fgetc(ptr); //skip 28
+  
   int ntemp=0;
   ntemp+= fgetc(ptr) | (fgetc(ptr) << 8) | (fgetc(ptr) << 16) | (fgetc(ptr) << 24);
   tempobj->nconst=ntemp;
-  tempobj->consts=getconsts(ptr,ntemp);
-  //printf("%d",tempobj->consts[0].val.ival); //test
+  tempobj->consts=(dataobj*) malloc(ntemp*sizeof(dataobj));
+  memcpy(tempobj->consts,getconsts(ptr,ntemp),ntemp*sizeof(dataobj));
+  free(retobj);
+  //tempobj->consts=getconsts(ptr,ntemp);
   
+  for(int s=0;s<ntemp;s++){
+  printf("test %s",tempobj->consts[s].val.cval); //test
+  }
   //geting names:
-  x=fgetc(ptr);//skip 28
+   printf("\ngetting names\n"); //test
+   fgetc(ptr);//skip 28
+  //printf("const%x",x);
+  
   int nametmp=0;
   nametmp+= fgetc(ptr) | (fgetc(ptr) << 8) | (fgetc(ptr) << 16) | (fgetc(ptr) << 24);
   tempobj->ncount=nametmp;
-  tempobj->names=getconsts(ptr,nametmp);
+
+  tempobj->names=(dataobj*) malloc(nametmp*sizeof(dataobj));
+  memcpy(tempobj->names,getconsts(ptr,nametmp),nametmp*sizeof(dataobj));
+  
+  
+  //test 
+  for(int s=0;s<ntemp;s++){
+  printf("test_in_names %s",tempobj->consts[s].val.cval); //test
+  }
+
   
   //geting varnames:
-  x=fgetc(ptr);//skip 28
+  fgetc(ptr);//skip 28
   //printf("%x:xval",x);
   int vartmp=0;
   vartmp+= fgetc(ptr) | (fgetc(ptr) << 8) | (fgetc(ptr) << 16) | (fgetc(ptr) << 24);
@@ -122,13 +144,13 @@ codeobj *getcode(FILE *ptr)
   
   
   //getting freevars skip
-   x=fgetc(ptr);//skip 28
+   fgetc(ptr);//skip 28
   int tmp=0;
    tmp+= fgetc(ptr) | (fgetc(ptr) << 8) | (fgetc(ptr) << 16) | (fgetc(ptr) << 24);
    tempobj->skipobj=getconsts(ptr,tmp);
   
   //getting cellvars skip
-    x=fgetc(ptr);//skip 28
+    fgetc(ptr);//skip 28
     tmp=0;
     tmp+= fgetc(ptr) | (fgetc(ptr) << 8) | (fgetc(ptr) << 16) | (fgetc(ptr) << 24);
     tempobj->skipobj=getconsts(ptr,tmp);
@@ -151,7 +173,7 @@ codeobj *getcode(FILE *ptr)
     char *bufferf=(char*) malloc(fnlen*sizeof(char));
     fread(bufferf,fnlen,1,ptr);
     tempobj->fnname=bufferf;
-    puts(tempobj->fnname);
+    //puts(tempobj->fnname);
     
   //skip first l no:
     fgetc(ptr);
@@ -169,7 +191,7 @@ codeobj *getcode(FILE *ptr)
     char *bufferl=(char*) malloc(skiptemp*sizeof(char));
     fread(buffer,skiptemp,1,ptr);
      
-     
+  fclose(ptr);   
      
      
   return tempobj;
@@ -177,11 +199,10 @@ codeobj *getcode(FILE *ptr)
     
 }
 
-
-dataobj *getconsts(FILE *ptr,int size){
-
-  dataobj *retobj=(dataobj*) malloc(size*sizeof(dataobj));
-  for(int j=0;j<size;j++)
+int xcount=0;
+dataobj *getconsts(FILE *ptr,int sz){
+  retobj=(dataobj*) malloc(sz*sizeof(dataobj));
+  for(int j=0;j<sz;j++)
   {    
    int check=fgetc(ptr);
     switch(check)
@@ -199,8 +220,9 @@ dataobj *getconsts(FILE *ptr,int size){
             retobj[j].val.ival = tempint;
             break;
         case 0x73:
+            break;
         case 0x74:
-           // printf("\nstring in get const\n"); //test
+            printf("\nstring in get const\n"); //test
             retobj[j].type=is_string;
             int tempsize=0;
             tempsize+= fgetc(ptr) | (fgetc(ptr) << 8) | (fgetc(ptr) << 16) | (fgetc(ptr) << 24);
@@ -209,11 +231,13 @@ dataobj *getconsts(FILE *ptr,int size){
             char tempstr[100];
             fread(tempstr, tempsize, 1, ptr);
             tempstr[tempsize]='\0';
+            retobj[j].val.cval=(char*) malloc(tempsize*sizeof(char));
+            memcpy(retobj[j].val.cval,&tempstr,tempsize);
             retobj[j].val.cval=tempstr;
           //  puts(retobj[j].val.cval); //test
             if(check==0x74){
                 strref[strref_count]=tempstr;
-                printf("%s\n",strref[strref_count]);
+               // printf("%s\n",strref[strref_count]);
                 strref_count+=1;
                 
                 //printf("\nstored ref at%d",strref_count-1);
@@ -226,8 +250,8 @@ dataobj *getconsts(FILE *ptr,int size){
             retobj[j].type=is_string;
             int loc=0;
             loc+= fgetc(ptr) | (fgetc(ptr) << 8) | (fgetc(ptr) << 16) | (fgetc(ptr) << 24);
-            printf("%d",loc);
-            printf("%s",strref[loc]);
+           // printf("%d",loc);
+            //printf("%s",strref[loc]);
             retobj[j].val.cval=strref[loc];
          break;
         case 0x63:
@@ -247,10 +271,75 @@ dataobj *getconsts(FILE *ptr,int size){
     
       
 }
-    return retobj;
-  }  
+return retobj;
+    
+
+}
+   
+  
 
 
+  //==================================================================== operations:
+  
+  void pop_top(){
+    pop();
+}
+
+void binary_add(){
+    dataobj *first=pop();
+    dataobj *second=pop();
+    dataobj *result;
+    result=(dataobj*) malloc(sizeof(dataobj));
+    result->val.ival=first->val.ival+second->val.ival; 
+    push(result);
+}
+
+void load_constant(int *instruction,dataobj *consts,int counter){
+    int index=0;
+    index+=instruction[counter+1] | (instruction[counter+2] << 8) ;
+    printf("index:%d",index);
+    dataobj *pushitem=(dataobj*) malloc(sizeof(dataobj));
+    pushitem=&consts[index];
+    printf("\n%s",consts[index].val.cval);
+    push(pushitem);
+    
+   
+}
+
+void print_instr(){
+    dataobj *item=pop();
+    if(item->type==is_int)
+    {
+        printf("%d",item->val.ival);
+    }
+    else if(item->type==is_string){
+        for(int j=0;j<item->size;j++)
+        {printf("%s",item->val.cval);}
+    }
+}
+
+
+void print_newline(){
+    printf("\n");
+    
+}
+
+
+
+  
+  
+  
+  
+  
+  
+  
+  
+  //====================================================================
+  
+  
+  
+  
+  
 
   void execute(int *instruction, dataobj *consts, int code_size)
     {
@@ -262,15 +351,20 @@ dataobj *getconsts(FILE *ptr,int size){
         {
             case 0x64:
                 printf("\nload constant%x",instruction[counter]);
+                load_constant(instruction,consts,counter);
+            
                 break;
             case 0x17:
                 printf("\nbinary add%x",instruction[counter]);
+                binary_add();
                 break;
             case 0x47:
                 printf("\nprint instr%x",instruction[counter]);
+                print_instr();
                 break;
             case 0x48:
                 printf("\nprint newline%x",instruction[counter]);
+                print_newline();
                 break;
             case 0x53:
                 printf("\nreturn value%x",instruction[counter]);
@@ -333,19 +427,37 @@ dataobj *getconsts(FILE *ptr,int size){
   
   int main()
 {   FILE *ptr;
-    ptr=fopen("test3.pyc","rb");
+    ptr=fopen("addtest.pyc","rb");
     codeobj *obj=(codeobj *) malloc(sizeof(codeobj));
      fseek ( ptr , 8 , SEEK_CUR );//skip magic num and timestamp
     int n=fgetc(ptr);// skip 63
    
-    obj=getcode(ptr);
+    memcpy(obj,getcode(ptr),sizeof(codeobj));
     printf("\nmain function:\n");
     for(int i=0;i<obj->code_size;i++)
   {   
       printf("%02x ", obj->code[i]);
   }
-    
-    execute(obj->code,obj->consts,obj->code_size);
-    return 0;
+  for(int i=0;i<obj->nconst;i++)
+  {
+printf("test %s",obj->consts[i].val.cval); 
+      
+}
+  
+  
+  //dataobj *num1;
+  //dataobj *num2;
+ // num1=(dataobj*) malloc(sizeof(dataobj));
+ // num2=(dataobj*) malloc(sizeof(dataobj));
+ //num1->val.ival=5;
+// printf("%d",num1->val.ival);
+//num2->val.ival=7;
+  //push(num1);
+  //push(num2);
+  //binary_add();
+  
+    //printf("%s",obj->consts[2].val.cval);
+   execute(obj->code,obj->consts,obj->code_size);
+   return 0;
 }
 
