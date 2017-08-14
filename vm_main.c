@@ -29,14 +29,22 @@ struct codeobj{
     
     int *code;
     int code_size;
+    
     dataobj *consts;
     int nconst;
+    
     dataobj *names;
     int ncount;
+    dataobj *namind;
+    
     dataobj *varnames;
     int varcount;
+    dataobj *varind;
+    
     char *fnname;
+    
     char *filename;
+    
     dataobj *skipobj;
     
     
@@ -124,7 +132,7 @@ codeobj *getcode(FILE *ptr)
   vartmp+= fgetc(ptr) | (fgetc(ptr) << 8) | (fgetc(ptr) << 16) | (fgetc(ptr) << 24);
   tempobj->varcount=vartmp;
   tempobj->varnames=(dataobj*) malloc(vartmp*sizeof(dataobj));
-  memcpy(tempobj->varnames,getconsts(ptr,nametmp),vartmp*sizeof(dataobj));
+  memcpy(tempobj->varnames,getconsts(ptr,vartmp),vartmp*sizeof(dataobj));
   free(retobj);
   
   //getting freevars skip
@@ -156,7 +164,7 @@ codeobj *getcode(FILE *ptr)
     fread(bufferf,fnlen,1,ptr);
     char *fin_fnname=(char*) malloc(fnlen*sizeof(char));
     strcpy(fin_fnname,bufferf);
-    tempobj->fnname=bufferf;
+    tempobj->fnname=fin_fnname;
     
     
   //skip first l no:
@@ -232,7 +240,7 @@ dataobj *getconsts(FILE *ptr,int sz){
             retobj[j].val.codedat=getcode(ptr);
             break;
         case 0x28:
-            printf("it hpns");
+            //printf("it hpns"); 
             break;
         default:
             break;
@@ -261,6 +269,7 @@ void binary_add(){
     dataobj *second=pop();
     dataobj *result;
     result=(dataobj*) malloc(sizeof(dataobj));
+    result->type=is_int;
     result->val.ival=first->val.ival+second->val.ival; 
     push(result);
 }
@@ -292,6 +301,44 @@ void print_newline(){
     
 }
 
+void load_name(int *instruction,dataobj *nameind,int counter){
+    int index=0;
+    index+=instruction[counter+1] | (instruction[counter+2] << 8) ;
+    dataobj *pushitem=(dataobj*) malloc(sizeof(dataobj));
+    pushitem=&nameind[index];
+    push(pushitem);
+    
+}
+
+void store_name(int *instruction,dataobj *namind,int counter){
+    int index=0;
+    index+=instruction[counter+1] | (instruction[counter+2] << 8) ;
+    dataobj *tempstoren=(dataobj*)malloc(sizeof(dataobj));
+    tempstoren=pop();
+    namind[index].val.ival=tempstoren->val.ival;
+    
+    
+}
+
+void load_fast(int *instruction,dataobj *varind,int counter){
+
+    int index=0;
+    index+=instruction[counter+1] | (instruction[counter+2] << 8) ;
+    dataobj *pushitem=(dataobj*) malloc(sizeof(dataobj));
+    pushitem=&varind[index];
+    push(pushitem);
+    
+}
+
+
+void store_fast(int *instruction,dataobj *varind,int counter){
+    int index=0;
+    index+=instruction[counter+1] | (instruction[counter+2] << 8) ;
+    varind[index]=*pop();
+    
+    
+}
+
 
 
   
@@ -309,7 +356,7 @@ void print_newline(){
   
   
 
-  void execute(int *instruction, dataobj *consts, int code_size)
+  void execute(int *instruction, dataobj *consts, int code_size,dataobj *varind,dataobj *namind)
     {
         
       int counter=0;  
@@ -323,7 +370,7 @@ void print_newline(){
             
                 break;
             case 0x17:
-                //printf("\nbinary add%x",instruction[counter]);
+               // printf("\nbinary add%x",instruction[counter]);
                 binary_add();
                 break;
             case 0x47:
@@ -339,6 +386,7 @@ void print_newline(){
                 break;
             case 0x7c:
                 //printf("\nloadfast%x",instruction[counter]);
+                load_fast(instruction,varind,counter);
                 break;
             case 0x83:
                 //printf("\ncall function%x",instruction[counter]);
@@ -348,12 +396,14 @@ void print_newline(){
                 break;
             case 0x7d:
                 //printf("\nstore fast%x",instruction[counter]);
+                store_fast(instruction,varind,counter);
                 break;
             case 0x72:
                 //printf("\npop jump if false%x",instruction[counter]);
                 break;
             case 0x1:
-                //printf("\npop top%x",instruction[counter]);
+               // printf("\npop top%x",instruction[counter]);
+                pop_top();
                 break;
             case 0x6e:
                 //printf("\njump forward%x",instruction[counter]);
@@ -363,11 +413,14 @@ void print_newline(){
                 break;
             case 0x5a:
                 //printf("\nstore name%x",instruction[counter]);
+                 store_name(instruction,namind,counter);
                 break;
             case 0x65:
                 //printf("\nload name%x",instruction[counter]);
+                load_name(instruction,namind,counter);
                 break;
             default:
+                //printf("\nunknown instr%x",instruction[counter]);
                 break;
         }
           if(instruction[counter]>=90)
@@ -395,7 +448,7 @@ void print_newline(){
   
   int main()
 {   FILE *ptr;
-    ptr=fopen("addtest.pyc","rb");
+    ptr=fopen("test3.pyc","rb");
     codeobj *obj=(codeobj *) malloc(sizeof(codeobj));
      fseek ( ptr , 8 , SEEK_CUR );//skip magic num and timestamp
     int n=fgetc(ptr);// skip 63
@@ -410,8 +463,9 @@ void print_newline(){
 printf("test %s",obj->consts[i].val.cval); 
       
 }*/
-  
-   execute(obj->code,obj->consts,obj->code_size);
+  obj->namind=(dataobj*) malloc(obj->ncount*sizeof(dataobj));
+  obj->varind=(dataobj*) malloc(obj->varcount*sizeof(dataobj));
+   execute(obj->code,obj->consts,obj->code_size,obj->varind,obj->namind);
    return 0;
 }
 
