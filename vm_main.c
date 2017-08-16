@@ -15,7 +15,7 @@ dataobj *retobj;
 
 
 struct dataobj {
-    enum { is_int, is_code, is_string,is_null,is_none } type;
+    enum { is_int, is_code, is_string,is_null,is_none,is_false,is_true } type;
     union {
         int ival;
         codeobj *codedat;
@@ -204,6 +204,12 @@ dataobj *getconsts(FILE *ptr,int sz){
         case 0x30:
             retobj[j].type=is_none;
             break;
+        case 0x46:
+            retobj[j].type=is_false;
+            break;
+        case 0x54:
+            retobj[j].type=is_true;
+            break;
         case 0x69:
             retobj[j].type=is_int;
             int tempint=0;
@@ -293,6 +299,12 @@ void print_instr(){
     else if(item->type==is_string){
         printf("%s",item->val.cval);
     }
+    else if(item->type==is_true){
+        printf("True");
+    }
+    else if(item->type==is_false){
+        printf("False");
+    }
 }
 
 
@@ -339,12 +351,89 @@ void store_fast(int *instruction,dataobj *varind,int counter){
     
 }
 
+void pop_jump_if_false(int *instruction,int counter){
+ if(pop()->type==is_false){
+    int index=0;
+    index+=instruction[counter+1] | (instruction[counter+2] << 8) ;
+    counter=index;
+     
+ }
+}
 
+dataobj *comp_op(int operand)
+{
+    dataobj *obj1,*obj2;
+    int op1,op2;
+    obj1=pop();
+    obj2=pop();
+    dataobj *tempdat = (dataobj *) malloc(sizeof(dataobj));
+    op1=obj2->val.ival;
+    op2=obj1->val.ival;
+    switch(operand)
+    {
+        case 0:
+            
+            if(op1<op2)
+            {
+              tempdat->type=is_true;  
+            }
+            else
+            {tempdat->type=is_false;}
+            break;
+        case 1:
+            if(op1<=op2)
+                {
+              tempdat->type=is_true;  
+            }
+            else
+            {tempdat->type=is_false;}
+            break;
+        case 2:
+            if(op1==op2)
+                {
+              tempdat->type=is_true;  
+            }
+            else
+            {tempdat->type=is_false;}
+            break;
+        case 3:
+            if(op1!=op2)
+                {
+              tempdat->type=is_true;  
+            }
+            else
+            {tempdat->type=is_false;}
+            break;
+        case 4:
+            if(op1>op2)
+                {
+              tempdat->type=is_true;  
+            }
+            else
+            {tempdat->type=is_false;}
+            break;
+        case 5:
+            if(op1>=op2)
+                {
+              tempdat->type=is_true;  
+            }
+            else
+            {tempdat->type=is_false;}
+            break;
+        default:
+            break;
+        
+        
+    }
+    return tempdat;
+}
 
   
   
-  
-  
+void jump_fwd(int *instruction,int counter)
+{
+    
+}
   
   
   
@@ -361,7 +450,7 @@ void store_fast(int *instruction,dataobj *varind,int counter){
         
       int counter=0;  
       while(counter<code_size)
-      {
+      { int c_op;
         switch(instruction[counter])
         {
             case 0x64:
@@ -383,6 +472,7 @@ void store_fast(int *instruction,dataobj *varind,int counter){
                 break;
             case 0x53:
                 //printf("\nreturn value%x",instruction[counter]);
+                //return
                 break;
             case 0x7c:
                 //printf("\nloadfast%x",instruction[counter]);
@@ -400,6 +490,7 @@ void store_fast(int *instruction,dataobj *varind,int counter){
                 break;
             case 0x72:
                 //printf("\npop jump if false%x",instruction[counter]);
+                pop_jump_if_false(instruction,counter);
                 break;
             case 0x1:
                // printf("\npop top%x",instruction[counter]);
@@ -409,7 +500,11 @@ void store_fast(int *instruction,dataobj *varind,int counter){
                 //printf("\njump forward%x",instruction[counter]);
                 break;
             case 0x6b:
-                //printf("\ncompare op%x",instruction[counter]);
+                c_op=0;
+                c_op+=instruction[counter+1] | (instruction[counter+2] << 8) ;
+                dataobj *pushitem=(dataobj*) malloc(sizeof(dataobj));
+                pushitem=comp_op(c_op);
+                push(pushitem);
                 break;
             case 0x5a:
                 //printf("\nstore name%x",instruction[counter]);
@@ -448,7 +543,7 @@ void store_fast(int *instruction,dataobj *varind,int counter){
   
   int main()
 {   FILE *ptr;
-    ptr=fopen("test3.pyc","rb");
+    ptr=fopen("comptest.pyc","rb");
     codeobj *obj=(codeobj *) malloc(sizeof(codeobj));
      fseek ( ptr , 8 , SEEK_CUR );//skip magic num and timestamp
     int n=fgetc(ptr);// skip 63
