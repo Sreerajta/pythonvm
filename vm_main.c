@@ -351,13 +351,16 @@ void store_fast(int *instruction,dataobj *varind,int counter){
     
 }
 
-void pop_jump_if_false(int *instruction,int counter){
+int pop_jump_if_false(int *instruction,int counter){
  if(pop()->type==is_false){
     int index=0;
     index+=instruction[counter+1] | (instruction[counter+2] << 8) ;
-    counter=index;
+    return index;
+    
      
  }
+ else
+     return 0;
 }
 
 dataobj *comp_op(int operand)
@@ -430,8 +433,10 @@ dataobj *comp_op(int operand)
 
   
   
-void jump_fwd(int *instruction,int counter)
+int jump_fwd(int *instruction,int counter)
 {
+    int operand=0;
+    operand+=instruction[counter+1] | (instruction[counter+2] << 8) ;
     
 }
   
@@ -451,32 +456,39 @@ void jump_fwd(int *instruction,int counter)
       int counter=0;  
       while(counter<code_size)
       { int c_op;
+        int jt;
+        int skipcount=0;
         switch(instruction[counter])
         {
             case 0x64:
-                //printf("\nload constant%x",instruction[counter]);
+                printf("\nload constant%x",instruction[counter]);
                 load_constant(instruction,consts,counter);
-            
+                counter+=3;
                 break;
             case 0x17:
-               // printf("\nbinary add%x",instruction[counter]);
+                printf("\nbinary add%x",instruction[counter]);
                 binary_add();
+                counter+=1;
                 break;
             case 0x47:
-                //printf("\nprint instr%x",instruction[counter]);
+                printf("\nprint instr%x",instruction[counter]);
                 print_instr();
+                counter+=1;
                 break;
             case 0x48:
-                //printf("\nprint newline%x",instruction[counter]);
+                printf("\nprint newline%x",instruction[counter]);
                 print_newline();
+                counter+=1;
                 break;
             case 0x53:
-                //printf("\nreturn value%x",instruction[counter]);
+                printf("\nreturn value%x",instruction[counter]);
+                counter+=1;
                 //return
                 break;
             case 0x7c:
-                //printf("\nloadfast%x",instruction[counter]);
+                printf("\nloadfast%x",instruction[counter]);
                 load_fast(instruction,varind,counter);
+                counter+=3;
                 break;
             case 0x83:
                 //printf("\ncall function%x",instruction[counter]);
@@ -485,43 +497,58 @@ void jump_fwd(int *instruction,int counter)
                 //printf("\nmake function%x",instruction[counter]);
                 break;
             case 0x7d:
-                //printf("\nstore fast%x",instruction[counter]);
+                printf("\nstore fast%x",instruction[counter]);
                 store_fast(instruction,varind,counter);
+                counter+=3;
                 break;
             case 0x72:
-                //printf("\npop jump if false%x",instruction[counter]);
-                pop_jump_if_false(instruction,counter);
+                printf("\npop jump if false%x",instruction[counter]);
+                jt=pop_jump_if_false(instruction,counter);
+                if(jt==0)
+                {counter+=3;}
+                else
+                  counter=jt;
                 break;
             case 0x1:
-               // printf("\npop top%x",instruction[counter]);
+                printf("\npop top%x",instruction[counter]);
                 pop_top();
+                counter+=1;
                 break;
             case 0x6e:
-                //printf("\njump forward%x",instruction[counter]);
+                printf("\njump forward%x",instruction[counter]);
+                jt=jump_fwd(instruction,counter);
+                
+                counter=counter+jt+3;
+                break;
+            case 0x78:
+                printf("\nsetup loop");
+                counter+=2;
                 break;
             case 0x6b:
+                printf("\ncomparison op");
                 c_op=0;
                 c_op+=instruction[counter+1] | (instruction[counter+2] << 8) ;
                 dataobj *pushitem=(dataobj*) malloc(sizeof(dataobj));
                 pushitem=comp_op(c_op);
                 push(pushitem);
+                counter+=3;
                 break;
             case 0x5a:
-                //printf("\nstore name%x",instruction[counter]);
+                printf("\nstore name%x",instruction[counter]);
                  store_name(instruction,namind,counter);
-                break;
+                counter+=3;
+                 break;
             case 0x65:
-                //printf("\nload name%x",instruction[counter]);
+                printf("\nload name%x",instruction[counter]);
                 load_name(instruction,namind,counter);
+               counter+=3;
                 break;
             default:
-                //printf("\nunknown instr%x",instruction[counter]);
+                printf("\nunknown instr%x",instruction[counter]);
                 break;
         }
-          if(instruction[counter]>=90)
-              counter+=3;
-          else
-              counter+=1;
+          
+       
           
     }
         
