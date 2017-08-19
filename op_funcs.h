@@ -134,14 +134,7 @@ void store_name (int *instruction, dataobj * namind, int counter,
       namind[index].val.ival = tempstoren->val.ival;
       int *i1 = (int *) malloc (sizeof (int));
       memcpy (i1, &tempstoren->val.ival, sizeof (int));
-      if (gflag == 0)
-	{
-	  globnames[globcount].type = is_int;
-	  globnames[globcount].val.ival = *i1;
-	  globcount += 1;
-	  gflag = 1;
 
-	}
 
 
     }
@@ -304,7 +297,7 @@ int jump_abs (int *instruction, int counter)
 }
 
 
-void make_func (int *instruction, int counter)
+void make_func (int *instruction, int counter,dataobj *globnames)
 {
 
   int operand = 0;
@@ -312,7 +305,8 @@ void make_func (int *instruction, int counter)
   dataobj *fun;
 
   fun = pop ();
-
+  memcpy(&globnames[globcount],fun,sizeof(dataobj));
+  globcount+=1;
   push (fun);
 
 }
@@ -324,7 +318,7 @@ void make_func (int *instruction, int counter)
 
 void call_func (int *instruction, int counter, dataobj * globnames)
 {
-
+  
   int loc = 0;
   loc += instruction[counter + 1] | (instruction[counter + 2] << 8);
   codeobj *funcode = (codeobj *) malloc (sizeof (codeobj));
@@ -346,9 +340,7 @@ void call_func (int *instruction, int counter, dataobj * globnames)
 
   dataobj *tempres = (dataobj *) malloc (sizeof (dataobj));
   pop ();
-  tempres =
-    execute (funcode->code, funcode->consts, funcode->code_size,
-	     funcode->varind, funcode->namind, globnames);
+  tempres = execute (funcode->code, funcode->consts, funcode->code_size, funcode->varind, funcode->namind, globnames);
 
   push (tempres);
 
@@ -360,13 +352,11 @@ void call_func (int *instruction, int counter, dataobj * globnames)
 
 void load_global (int *instruction, dataobj * globnames, int counter)
 {
-
-  // not working as expected when recursion comes
+   
   int index = 0;
   index += instruction[counter + 1] | (instruction[counter + 2] << 8);
   dataobj *pushitemg = (dataobj *) malloc (sizeof (dataobj));
-  pushitemg->val.ival = globnames[index].val.ival;
-  pushitemg->type = is_int;
+  memcpy(pushitemg,&globnames[index],sizeof(dataobj));
   push (pushitemg);
 
 }

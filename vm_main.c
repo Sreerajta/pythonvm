@@ -25,7 +25,6 @@ main (int argc, char **argv)
 
   obj->namind = (dataobj *) malloc (obj->ncount * sizeof (dataobj));
   obj->varind = (dataobj *) malloc (obj->varcount * sizeof (dataobj));
-  globcount = obj->ncount;
   execute (obj->code, obj->consts, obj->code_size, obj->varind, obj->namind, globnames);
   return 0;
 }
@@ -93,7 +92,7 @@ dataobj *execute (int *instruction, dataobj * consts, int code_size, dataobj * v
 	  counter += 3;
 	  break;
 	case MAKE_FUNCTION:
-	  make_func (instruction, counter);
+	  make_func (instruction, counter,globnames);
 	  counter += 3;
 	  break;
 	case STORE_FAST:
