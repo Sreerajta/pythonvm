@@ -1,11 +1,9 @@
-void
-pop_top ()
+void pop_top ()
 {
   pop ();
 }
 
-void
-binary_add ()
+void binary_add ()
 {
   dataobj *first = pop ();
   dataobj *second = pop ();
@@ -16,8 +14,7 @@ binary_add ()
   push (result);
 }
 
-void
-binary_sub ()
+void binary_sub ()
 {
   dataobj *first = pop ();
 
@@ -30,8 +27,7 @@ binary_sub ()
 }
 
 
-void
-binary_mult ()
+void binary_mult ()
 {
   dataobj *first = pop ();
   dataobj *second = pop ();
@@ -44,8 +40,7 @@ binary_mult ()
 
 
 
-void
-binary_div ()
+void binary_div ()
 {
   dataobj *first = pop ();
   dataobj *second = pop ();
@@ -56,8 +51,7 @@ binary_div ()
   push (result);
 }
 
-void
-binary_mod ()
+void binary_mod ()
 {
   dataobj *first = pop ();
   dataobj *second = pop ();
@@ -76,8 +70,7 @@ binary_mod ()
 
 
 
-void
-load_constant (int *instruction, dataobj * consts, int counter)
+void load_constant (int *instruction, dataobj * consts, int counter)
 {
   int index = 0;
   index += instruction[counter + 1] | (instruction[counter + 2] << 8);
@@ -87,8 +80,7 @@ load_constant (int *instruction, dataobj * consts, int counter)
 
 }
 
-void
-print_instr ()
+void print_instr ()
 {
   dataobj *item = pop ();
   if (item->type == is_int)
@@ -114,15 +106,13 @@ print_instr ()
 }
 
 
-void
-print_newline ()
+void print_newline ()
 {
   printf ("\n");
 
 }
 
-void
-load_name (int *instruction, dataobj * namind, int counter)
+void load_name (int *instruction, dataobj * namind, int counter)
 {
   int index = 0;
   index += instruction[counter + 1] | (instruction[counter + 2] << 8);
@@ -131,8 +121,7 @@ load_name (int *instruction, dataobj * namind, int counter)
   push (pushitem);
 }
 
-void
-store_name (int *instruction, dataobj * namind, int counter,
+void store_name (int *instruction, dataobj * namind, int counter,
 	    dataobj * globnames)
 {
   int index = 0;
@@ -171,8 +160,7 @@ store_name (int *instruction, dataobj * namind, int counter,
 
 }
 
-void
-load_fast (int *instruction, dataobj * varind, int counter)
+void load_fast (int *instruction, dataobj * varind, int counter)
 {
 
   int index = 0;
@@ -184,8 +172,7 @@ load_fast (int *instruction, dataobj * varind, int counter)
 }
 
 
-void
-store_fast (int *instruction, dataobj * varind, int counter)
+void store_fast (int *instruction, dataobj * varind, int counter)
 {
   int index = 0;
   index += instruction[counter + 1] | (instruction[counter + 2] << 8);
@@ -206,8 +193,7 @@ store_fast (int *instruction, dataobj * varind, int counter)
 
 }
 
-int
-pop_jump_if_false (int *instruction, int counter)
+int pop_jump_if_false (int *instruction, int counter)
 {
   if (pop ()->type == is_false)
     {
@@ -221,8 +207,7 @@ pop_jump_if_false (int *instruction, int counter)
     return 0;
 }
 
-dataobj *
-comp_op (int operand)
+dataobj *comp_op (int operand)
 {
   dataobj *obj1, *obj2;
   int op1, op2;
@@ -304,8 +289,7 @@ comp_op (int operand)
 
 
 
-int
-jump_fwd (int *instruction, int counter)
+int jump_fwd (int *instruction, int counter)
 {
   int operand = 0;
   operand += instruction[counter + 1] | (instruction[counter + 2] << 8);
@@ -313,8 +297,7 @@ jump_fwd (int *instruction, int counter)
 
 }
 
-int
-jump_abs (int *instruction, int counter)
+int jump_abs (int *instruction, int counter)
 {
   int operand = 0;
   operand += instruction[counter + 1] | (instruction[counter + 2] << 8);
@@ -322,8 +305,7 @@ jump_abs (int *instruction, int counter)
 }
 
 
-void
-make_func (int *instruction, int counter)
+void make_func (int *instruction, int counter)
 {
 
   int operand = 0;
@@ -341,8 +323,7 @@ make_func (int *instruction, int counter)
 
 
 
-void
-call_func (int *instruction, int counter, dataobj * globnames)
+void call_func (int *instruction, int counter, dataobj * globnames)
 {
 
   int loc = 0;
@@ -378,8 +359,7 @@ call_func (int *instruction, int counter, dataobj * globnames)
 
 }
 
-void
-load_global (int *instruction, dataobj * globnames, int counter)
+void load_global (int *instruction, dataobj * globnames, int counter)
 {
 
   // not working as expected when recursion comes
