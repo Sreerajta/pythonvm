@@ -4,15 +4,19 @@
 #include<math.h>
 #include<time.h>
 
-
+int gflag=0;
 typedef struct dataobj dataobj;
 typedef struct codeobj codeobj;
-char *strref[100]; // to store interned strings
+char *strref[100]; 
 int strref_count=0;
+int globcount=0;
 
+
+
+void print_instr();
 dataobj *getconsts(FILE *ptr,int size);
-dataobj *retobj;
 
+dataobj *execute(int *instruction, dataobj *consts, int code_size,dataobj *varind,dataobj *namind,dataobj *globnames);
 
 struct dataobj {
     enum { is_int, is_code, is_string,is_null,is_none,is_false,is_true } type;
@@ -29,6 +33,8 @@ struct codeobj{
     
     int *code;
     int code_size;
+    
+    int argcount;
     
     dataobj *consts;
     int nconst;
@@ -51,8 +57,8 @@ struct codeobj{
     
 };
 
-//defining the stack:
-dataobj *stack[100]; // stack has to store multiple type of dataobj
+
+dataobj *stack[100]; 
 int sp=0;
 
 void push(dataobj *obj){
@@ -79,6 +85,10 @@ dataobj *pop(){
     }
 }
 
+dataobj *getfun(int loc)
+{ 
+    return stack[sp-loc-1];}
+
 //--------------------------------------------------------------------------
 
 
@@ -91,58 +101,64 @@ dataobj *pop(){
 
 codeobj *getcode(FILE *ptr)
 {
- //dev reminder: called after getting a 63, so no skip
+    
+ 
   
   int temp=0;
   codeobj *tempobj;
   tempobj = (codeobj *) malloc(sizeof(codeobj));
-  fseek ( ptr , 16 , SEEK_CUR );
-  int n= fgetc(ptr);//skip 73
+  int tempargc=0;
+  tempargc+=fgetc(ptr) | (fgetc(ptr) << 8) | (fgetc(ptr) << 16) | (fgetc(ptr) << 24);
+  tempobj->argcount=tempargc;
+  fseek ( ptr , 12 , SEEK_CUR );
+  int n= fgetc(ptr);
   temp+= fgetc(ptr) | (fgetc(ptr) << 8) | (fgetc(ptr) << 16) | (fgetc(ptr) << 24);
   tempobj->code_size=temp;
   tempobj->code=(int*)malloc(tempobj->code_size*sizeof(int));
   for(int i=0;i<tempobj->code_size;i++)
   {   tempobj->code[i]=fgetc(ptr);
-      
   }
   
-  //getting consts;
-  fgetc(ptr); //skip 28
+  
+  
+  //getting consts
+  fgetc(ptr); 
   int ntemp=0;
   ntemp+= fgetc(ptr) | (fgetc(ptr) << 8) | (fgetc(ptr) << 16) | (fgetc(ptr) << 24);
   tempobj->nconst=ntemp;
+  
   tempobj->consts=(dataobj*) malloc(ntemp*sizeof(dataobj));
   memcpy(tempobj->consts,getconsts(ptr,ntemp),ntemp*sizeof(dataobj));
-  free(retobj);
+
 
 
   //geting names:
-   fgetc(ptr);//skip 28
+   fgetc(ptr);
    int nametmp=0;
    nametmp+= fgetc(ptr) | (fgetc(ptr) << 8) | (fgetc(ptr) << 16) | (fgetc(ptr) << 24);
    tempobj->ncount=nametmp;
    tempobj->names=(dataobj*) malloc(nametmp*sizeof(dataobj));
    memcpy(tempobj->names,getconsts(ptr,nametmp),nametmp*sizeof(dataobj));
-   free(retobj);
+   //free(retobj);
 
   
   //geting varnames:
-  fgetc(ptr);//skip 28
+  fgetc(ptr);
   int vartmp=0;
   vartmp+= fgetc(ptr) | (fgetc(ptr) << 8) | (fgetc(ptr) << 16) | (fgetc(ptr) << 24);
   tempobj->varcount=vartmp;
   tempobj->varnames=(dataobj*) malloc(vartmp*sizeof(dataobj));
   memcpy(tempobj->varnames,getconsts(ptr,vartmp),vartmp*sizeof(dataobj));
-  free(retobj);
   
-  //getting freevars skip
-   fgetc(ptr);//skip 28
+  
+  //skipping freevars
+   fgetc(ptr);
    int tmp=0;
    tmp+= fgetc(ptr) | (fgetc(ptr) << 8) | (fgetc(ptr) << 16) | (fgetc(ptr) << 24);
    tempobj->skipobj=getconsts(ptr,tmp);
   
-  //getting cellvars skip
-    fgetc(ptr);//skip 28
+  //skipping cellvars
+    fgetc(ptr);
     tmp=0;
     tmp+= fgetc(ptr) | (fgetc(ptr) << 8) | (fgetc(ptr) << 16) | (fgetc(ptr) << 24);
     tempobj->skipobj=getconsts(ptr,tmp);
@@ -154,10 +170,10 @@ codeobj *getcode(FILE *ptr)
     char *buffer=(char*) malloc(flen*sizeof(char));
     fread(buffer,flen,1,ptr);
     tempobj->filename=buffer;
-   // puts(tempobj->filename); // test
+    
     
   //geting fn name
-    fgetc(ptr);
+    int x=fgetc(ptr);
     int fnlen=0;
     fnlen+= fgetc(ptr) | (fgetc(ptr) << 8) | (fgetc(ptr) << 16) | (fgetc(ptr) << 24);
     char *bufferf=(char*) malloc(fnlen*sizeof(char));
@@ -166,8 +182,12 @@ codeobj *getcode(FILE *ptr)
     strcpy(fin_fnname,bufferf);
     tempobj->fnname=fin_fnname;
     
+    if(x == 0x74)
+        strref[strref_count++] = tempobj->fnname;
+
     
-  //skip first l no:
+    
+  //skip first_line no:
     fgetc(ptr);
     
      fgetc(ptr);
@@ -182,8 +202,7 @@ codeobj *getcode(FILE *ptr)
     char *bufferl=(char*) malloc(skiptemp*sizeof(char));
     fread(buffer,skiptemp,1,ptr);
      
-  fclose(ptr);   
-     
+
      
   return tempobj;
     
@@ -192,12 +211,15 @@ codeobj *getcode(FILE *ptr)
 
 
 dataobj *getconsts(FILE *ptr,int sz){
-  retobj=(dataobj*) malloc(sz*sizeof(dataobj));
+  
+    dataobj *retobj=(dataobj*) malloc(sz*sizeof(dataobj));
+
   for(int j=0;j<sz;j++)
-  {    
+  {  
    int check=fgetc(ptr);
+   
     switch(check)
-    {
+    {  
         case 0x4e:
             retobj[j].type=is_null;
             break;
@@ -246,9 +268,9 @@ dataobj *getconsts(FILE *ptr,int sz){
             retobj[j].val.codedat=getcode(ptr);
             break;
         case 0x28:
-            //printf("it hpns"); 
             break;
         default:
+            printf("%d",check);
             break;
         
     } 
@@ -280,13 +302,63 @@ void binary_add(){
     push(result);
 }
 
+void binary_sub(){
+    dataobj *first=pop();
+    
+    dataobj *second=pop();
+    dataobj *result2;
+    result2=(dataobj*) malloc(sizeof(dataobj));
+    result2->type=is_int;
+    result2->val.ival=second->val.ival-first->val.ival; 
+    push(result2);
+}
+
+
+void binary_mult(){
+    dataobj *first=pop();
+    dataobj *second=pop();
+    dataobj *result;
+    result=(dataobj*) malloc(sizeof(dataobj));
+    result->type=is_int;
+    result->val.ival=first->val.ival*second->val.ival; 
+    push(result);
+}
+
+
+
+void binary_div(){
+    dataobj *first=pop();
+    dataobj *second=pop();
+    dataobj *result;
+    result=(dataobj*) malloc(sizeof(dataobj));
+    result->type=is_int;
+    result->val.ival=second->val.ival/first->val.ival; 
+    push(result);
+}
+void binary_mod(){
+    dataobj *first=pop();
+    dataobj *second=pop();
+    dataobj *result;
+    result=(dataobj*) malloc(sizeof(dataobj));
+    result->type=is_int;
+    result->val.ival=second->val.ival%first->val.ival; 
+    push(result);
+    
+    
+}
+
+
+
+
+
+
+
 void load_constant(int *instruction,dataobj *consts,int counter){
     int index=0;
     index+=instruction[counter+1] | (instruction[counter+2] << 8) ;
-    dataobj *pushitem=(dataobj*) malloc(sizeof(dataobj));
-    pushitem=&consts[index];
-    push(pushitem);
-    
+    dataobj *pushnitem=(dataobj*) malloc(sizeof(dataobj));
+    pushnitem=&consts[index];
+    push(pushnitem);
    
 }
 
@@ -305,6 +377,10 @@ void print_instr(){
     else if(item->type==is_false){
         printf("False");
     }
+    else
+    {
+        printf("%d",item->val.ival);
+    }
 }
 
 
@@ -313,22 +389,43 @@ void print_newline(){
     
 }
 
-void load_name(int *instruction,dataobj *nameind,int counter){
+void load_name(int *instruction,dataobj *namind,int counter){
     int index=0;
     index+=instruction[counter+1] | (instruction[counter+2] << 8) ;
     dataobj *pushitem=(dataobj*) malloc(sizeof(dataobj));
-    pushitem=&nameind[index];
+    pushitem=&namind[index];
     push(pushitem);
-    
 }
 
-void store_name(int *instruction,dataobj *namind,int counter){
+void store_name(int *instruction,dataobj *namind,int counter,dataobj *globnames){
     int index=0;
     index+=instruction[counter+1] | (instruction[counter+2] << 8) ;
     dataobj *tempstoren=(dataobj*)malloc(sizeof(dataobj));
     tempstoren=pop();
-    namind[index].val.ival=tempstoren->val.ival;
-    
+    if(tempstoren->type==is_int){
+     namind[index].type=is_int;
+     namind[index].val.ival=tempstoren->val.ival;
+     int *i1=(int*) malloc(sizeof(int));
+      memcpy(i1,&tempstoren->val.ival,sizeof(int)); 
+     if(gflag==0){
+        globnames[globcount].type==is_int;
+      globnames[globcount].val.ival=*i1;
+      printf("glob:%d\n",globnames[globcount].val.ival);
+      globcount+=1;
+      gflag=1;      
+      
+        }
+        
+        
+    }
+    else if(tempstoren->type==is_string){
+        namind[index].type=is_string;
+        namind[index].val.cval=tempstoren->val.cval;}
+    else if(tempstoren->type==is_code)
+        {  
+            namind[index].type=is_code;
+            namind[index].val.codedat=tempstoren->val.codedat;}
+
     
 }
 
@@ -336,18 +433,25 @@ void load_fast(int *instruction,dataobj *varind,int counter){
 
     int index=0;
     index+=instruction[counter+1] | (instruction[counter+2] << 8) ;
-    dataobj *pushitem=(dataobj*) malloc(sizeof(dataobj));
-    pushitem=&varind[index];
-    push(pushitem);
-    
+    dataobj *pushfitem=(dataobj*) malloc(sizeof(dataobj));
+    pushfitem=&varind[index];
+    push(pushfitem);
+   
 }
 
 
 void store_fast(int *instruction,dataobj *varind,int counter){
     int index=0;
     index+=instruction[counter+1] | (instruction[counter+2] << 8) ;
-    varind[index]=*pop();
-    
+     dataobj *tempstorev=(dataobj*)malloc(sizeof(dataobj));
+    tempstorev=pop();
+    if(tempstorev->type==is_int){
+    varind[index].val.ival=tempstorev->val.ival;}
+    else if(tempstorev->type==is_string){
+        varind[index].val.cval=tempstorev->val.cval;}
+    else if(tempstorev->type==is_code)
+        {  
+            varind[index].val.codedat=tempstorev->val.codedat;}
     
 }
 
@@ -437,10 +541,79 @@ int jump_fwd(int *instruction,int counter)
 {
     int operand=0;
     operand+=instruction[counter+1] | (instruction[counter+2] << 8) ;
+    return operand;
     
 }
+
+int jump_abs(int *instruction,int counter){
+    int operand=0;
+    operand+=instruction[counter+1] | (instruction[counter+2] << 8) ;
+    return operand;
+}
+
+
+void make_func(int *instruction, int counter)
+{
+
+int operand=0;
+operand+=instruction[counter+1] | (instruction[counter+2] << 8) ;
+dataobj *fun;
+
+fun=pop();
+
+push(fun);
+
+}
+
+
+
+
+
+
+void call_func(int *instruction, int counter,dataobj *globnames)
+{
+
+int loc=0;
+loc+=instruction[counter+1] | (instruction[counter+2] << 8) ;
+codeobj *funcode=(codeobj*) malloc(sizeof(codeobj));
+dataobj *fun;
+fun=getfun(loc);
+
+memcpy(funcode, fun->val.codedat, sizeof (codeobj));
+
+
+funcode->varind=(dataobj*) malloc(funcode->argcount*sizeof(dataobj));
+
+for(int i=funcode->argcount-1;i>=0;i--){
+
+memcpy(&funcode->varind[i],pop(),sizeof(dataobj));
+
+}
+
+
+dataobj *tempres=(dataobj*) malloc(sizeof(dataobj));
+pop();
+tempres=execute(funcode->code,funcode->consts,funcode->code_size,funcode->varind,funcode->namind,globnames);
+
+push(tempres);
+
+
+
+
+
+}
   
-  
+void load_global(int *instruction,dataobj *globnames,int counter){
+   
+   // not working as expected when recursion comes
+    int index=0;
+    index+=instruction[counter+1] | (instruction[counter+2] << 8) ;
+    dataobj *pushitemg=(dataobj*) malloc(sizeof(dataobj));
+    pushitemg->val.ival=globnames[index].val.ival;
+    pushitemg->type=is_int;
+    push(pushitemg);
+    
+}
   
   
   //====================================================================
@@ -450,9 +623,10 @@ int jump_fwd(int *instruction,int counter)
   
   
 
-  void execute(int *instruction, dataobj *consts, int code_size,dataobj *varind,dataobj *namind)
+  dataobj *execute(int *instruction, dataobj *consts, int code_size,dataobj *varind,dataobj *namind,dataobj *globnames)
     {
-        
+       globnames=(dataobj*) malloc(5*sizeof(dataobj));
+        int rglcount;
       int counter=0;  
       while(counter<code_size)
       { int c_op;
@@ -461,71 +635,101 @@ int jump_fwd(int *instruction,int counter)
         switch(instruction[counter])
         {
             case 0x64:
-                printf("\nload constant%x",instruction[counter]);
+                //printf("\nload constant%x",instruction[counter]);
                 load_constant(instruction,consts,counter);
                 counter+=3;
                 break;
             case 0x17:
-                printf("\nbinary add%x",instruction[counter]);
+               // printf("\nbinary add%x",instruction[counter]);
                 binary_add();
                 counter+=1;
                 break;
+            case 0x18:
+               // printf("\n subtract");
+                binary_sub();
+                counter+=1;
+                break;
+            case 0x14:
+                binary_mult();
+                counter+=1;
+                break;
+            case 0x1b:
+                binary_div();
+                counter+=1;
+                break;
             case 0x47:
-                printf("\nprint instr%x",instruction[counter]);
+                //printf("\nprint instr%x",instruction[counter]);
                 print_instr();
                 counter+=1;
                 break;
             case 0x48:
-                printf("\nprint newline%x",instruction[counter]);
+               // printf("\nprint newline%x",instruction[counter]);
                 print_newline();
                 counter+=1;
                 break;
             case 0x53:
-                printf("\nreturn value%x",instruction[counter]);
+                //printf("\nreturn value%x",instruction[counter]);
+                return pop();
                 counter+=1;
-                //return
                 break;
             case 0x7c:
-                printf("\nloadfast%x",instruction[counter]);
+               // printf("\nloadfast%x",instruction[counter]);
                 load_fast(instruction,varind,counter);
                 counter+=3;
                 break;
             case 0x83:
                 //printf("\ncall function%x",instruction[counter]);
+                call_func(instruction,counter,globnames);
+                counter+=3;
                 break;
             case 0x84:
                 //printf("\nmake function%x",instruction[counter]);
+                make_func(instruction,counter);
+                counter+=3;
                 break;
             case 0x7d:
-                printf("\nstore fast%x",instruction[counter]);
+                //printf("\nstore fast%x",instruction[counter]);
                 store_fast(instruction,varind,counter);
                 counter+=3;
                 break;
             case 0x72:
-                printf("\npop jump if false%x",instruction[counter]);
+                //printf("\npop jump if false%x",instruction[counter]);
                 jt=pop_jump_if_false(instruction,counter);
                 if(jt==0)
                 {counter+=3;}
                 else
                   counter=jt;
                 break;
+            case 0x16:
+                binary_mod();
+                counter+=1;
+                break;
             case 0x1:
-                printf("\npop top%x",instruction[counter]);
+                //printf("\npop top%x",instruction[counter]);
                 pop_top();
                 counter+=1;
                 break;
             case 0x6e:
-                printf("\njump forward%x",instruction[counter]);
+                //printf("\njump forward%x",instruction[counter]);
                 jt=jump_fwd(instruction,counter);
                 
                 counter=counter+jt+3;
                 break;
             case 0x78:
-                printf("\nsetup loop");
-                counter+=2;
+                //printf("\nsetup loop");
+                counter+=3;
+                break;
+            case 0x71:
+                //printf("\njump abs");
+                counter=jump_abs(instruction,counter);
+                
+                break;
+            case 0x57:
+                //printf("\npop-block");
+                counter+=1;
                 break;
             case 0x6b:
-                printf("\ncomparison op");
+                //printf("\ncomparison op");
                 c_op=0;
                 c_op+=instruction[counter+1] | (instruction[counter+2] << 8) ;
                 dataobj *pushitem=(dataobj*) malloc(sizeof(dataobj));
@@ -534,25 +738,29 @@ int jump_fwd(int *instruction,int counter)
                 counter+=3;
                 break;
             case 0x5a:
-                printf("\nstore name%x",instruction[counter]);
-                 store_name(instruction,namind,counter);
+                // printf("\nstore name%x",instruction[counter]);
+                 store_name(instruction,namind,counter,globnames);
+                 counter+=3;
+                 break;
+            case 0x74:
+                load_global(instruction,globnames,counter);
                 counter+=3;
                  break;
             case 0x65:
-                printf("\nload name%x",instruction[counter]);
+               // printf("\nload name%x",instruction[counter]);
                 load_name(instruction,namind,counter);
-               counter+=3;
+                counter+=3;
                 break;
             default:
-                printf("\nunknown instr%x",instruction[counter]);
-                break;
+               printf("\nunknown instr%x",instruction[counter]);
+               break;
         }
           
        
           
     }
         
-        
+        return 0;
         
         
     }
@@ -570,24 +778,20 @@ int jump_fwd(int *instruction,int counter)
   
   int main()
 {   FILE *ptr;
-    ptr=fopen("comptest.pyc","rb");
+   
+    
+    ptr=fopen("t8.pyc","rb");
+    
     codeobj *obj=(codeobj *) malloc(sizeof(codeobj));
      fseek ( ptr , 8 , SEEK_CUR );//skip magic num and timestamp
-    int n=fgetc(ptr);// skip 63
-    memcpy(obj,getcode(ptr),sizeof(codeobj));
-    //printf("\nmain function:\n");
- /*   for(int i=0;i<obj->code_size;i++)
-  {   
-      printf("%02x ", obj->code[i]);
-  }
-  for(int i=0;i<obj->nconst;i++)
-  {
-printf("test %s",obj->consts[i].val.cval); 
-      
-}*/
-  obj->namind=(dataobj*) malloc(obj->ncount*sizeof(dataobj));
-  obj->varind=(dataobj*) malloc(obj->varcount*sizeof(dataobj));
-   execute(obj->code,obj->consts,obj->code_size,obj->varind,obj->namind);
+    int n=fgetc(ptr);
+   memcpy(obj,getcode(ptr),sizeof(codeobj));
+   dataobj *globnames;
+   
+   obj->namind=(dataobj*) malloc(obj->ncount*sizeof(dataobj));
+   obj->varind=(dataobj*) malloc(obj->varcount*sizeof(dataobj));
+   globcount=obj->ncount;
+   execute(obj->code,obj->consts,obj->code_size,obj->varind,obj->namind,globnames);
    return 0;
 }
 
