@@ -138,7 +138,6 @@ void store_name (int *instruction, dataobj * namind, int counter,
 	{
 	  globnames[globcount].type = is_int;
 	  globnames[globcount].val.ival = *i1;
-	  printf ("glob:%d\n", globnames[globcount].val.ival);
 	  globcount += 1;
 	  gflag = 1;
 
