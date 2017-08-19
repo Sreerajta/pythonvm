@@ -18,6 +18,7 @@ A subset of python vm
    * supports if-else statements
    * supports while loop
    * supports comparison operators
-   * supports functions without recursion
+   * supports functions  with recursion
+   
    
     
